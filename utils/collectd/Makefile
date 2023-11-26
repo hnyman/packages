@@ -187,6 +187,7 @@ COLLECTD_PLUGINS_SELECTED:= \
 	protocols \
 	routeros \
 	rrdtool \
+	rrdtoollegacy \
 	sensors \
 	smart \
 	snmp \
@@ -243,6 +244,7 @@ define Package/collectd/description
 endef
 
 define Package/collectd/config
+  if PACKAGE_collectd
 	config PACKAGE_COLLECTD_ENCRYPTED_NETWORK
 	bool "Enable ability to use encrypted networking"
 	default n
@@ -257,6 +259,8 @@ define Package/collectd/config
 	  Enables the compiler option that collectd is compiled with
 	  debugging support. This is used at development stages to get
 	  more messages from the collectd during development.
+
+  endif
 endef
 
 # common configure args
@@ -334,9 +338,14 @@ ifneq ($(CONFIG_PACKAGE_collectd-mod-modbus),)
   CONFIGURE_ARGS+= --with-libmodbus="$(STAGING_DIR)/usr"
 endif
 
-# exception: mod-rrdtool needs rrdtool-1.0.x
+# exception: mod-rrdtoollegacy needs rrdtool-1.0.x
+ifneq ($(CONFIG_PACKAGE_collectd-mod-rrdtoollegacy),)
+  CONFIGURE_ARGS+= --with-librrdlegacy="$(STAGING_DIR)/usr/lib/rrdtool-1.0"
+endif
+
+# exception: mod-rrdtool needs rrdtool
 ifneq ($(CONFIG_PACKAGE_collectd-mod-rrdtool),)
-  CONFIGURE_ARGS+= --with-librrd="$(STAGING_DIR)/usr/lib/rrdtool-1.0"
+  CONFIGURE_ARGS+= --with-librrd="$(STAGING_DIR)/usr/lib/rrdtool"
 endif
 
 # exception: mod-smart needs libatasmart and libudev
@@ -357,6 +366,13 @@ define Package/collectd/conffiles
 /etc/config/collectd
 endef
 
+define Build/Prepare
+	$(call Build/Prepare/Default)
+	mkdir -p $(PKG_BUILD_DIR)/srclegacy/utils/rrdcreate
+	cp $(PKG_BUILD_DIR)/src/rrdtool.c $(PKG_BUILD_DIR)/srclegacy
+	cp $(PKG_BUILD_DIR)/src/utils/rrdcreate/* $(PKG_BUILD_DIR)/srclegacy/utils/rrdcreate
+endef
+
 define Package/collectd/install
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/collectd $(1)/usr/sbin/
@@ -375,6 +391,7 @@ endef
 # 2: plugin title/description
 # 3: files
 # 4: extra dependency
+# 5: conflicts
 define BuildPlugin
 
   PKG_CONFIG_DEPENDS+= CONFIG_PACKAGE_collectd-mod-$(1)
@@ -383,6 +400,7 @@ define BuildPlugin
   $$(call Package/collectd/Default)
     TITLE:=$(2) plugin
     DEPENDS:= collectd $(4)
+    CONFLICTS:= $(5)
   endef
 
   define Package/collectd-mod-$(1)/install
@@ -510,7 +528,8 @@ $(eval $(call BuildPlugin,powerdns,PowerDNS server status input,powerdns,))
 $(eval $(call BuildPlugin,processes,process status input,processes,+PACKAGE_collectd-mod-processes:libmnl))
 $(eval $(call BuildPlugin,protocols,network protocols input,protocols,))
 $(eval $(call BuildPlugin,routeros,MikroTik RouterOS input,routeros,+PACKAGE_collectd-mod-routeros:librouteros))
-$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool,+PACKAGE_collectd-mod-rrdtool:librrd1))
+$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool,+PACKAGE_collectd-mod-rrdtool:librrd,collectd-mod-rrdtoollegacy))
+$(eval $(call BuildPlugin,rrdtoollegacy,RRDtool_legacy output,rrdtoollegacy,+PACKAGE_collectd-mod-rrdtoollegacy:librrd1))
 $(eval $(call BuildPlugin,sensors,lm_sensors input,sensors,+PACKAGE_collectd-mod-sensors:lm-sensors))
 $(eval $(call BuildPlugin,smart,smart input,smart,+PACKAGE_collectd-mod-smart:libatasmart))
 $(eval $(call BuildPlugin,snmp,SNMP input,snmp,+PACKAGE_collectd-mod-snmp:libnetsnmp))
