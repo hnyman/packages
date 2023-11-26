@@ -1,0 +1,121 @@
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -1887,6 +1887,17 @@ rrdtool_la_LDFLAGS = $(PLUGIN_LDFLAGS) $
+ rrdtool_la_LIBADD = $(BUILD_WITH_LIBRRD_LIBS)
+ endif
+ 
++if BUILD_PLUGIN_RRDTOOLLEGACY
++pkglib_LTLIBRARIES += rrdtoollegacy.la
++rrdtoollegacy_la_SOURCES = \
++	srclegacy/rrdtool.c \
++	srclegacy/utils/rrdcreate/rrdcreate.c \
++	srclegacy/utils/rrdcreate/rrdcreate.h
++rrdtoollegacy_la_CFLAGS = $(AM_CFLAGS) $(BUILD_WITH_LIBRRDLEGACY_CFLAGS)
++rrdtoollegacy_la_LDFLAGS = $(PLUGIN_LDFLAGS) $(BUILD_WITH_LIBRRDLEGACY_LDFLAGS)
++rrdtoollegacy_la_LIBADD = $(BUILD_WITH_LIBRRDLEGACY_LIBS)
++endif
++
+ if BUILD_PLUGIN_SENSORS
+ pkglib_LTLIBRARIES += sensors.la
+ sensors_la_SOURCES = src/sensors.c
+--- a/configure.ac
++++ b/configure.ac
+@@ -5314,6 +5314,34 @@ AC_SUBST([BUILD_WITH_LIBRRD_LDFLAGS])
+ AC_SUBST([BUILD_WITH_LIBRRD_LIBS])
+ # }}}
+ 
++# --with-librrdlegacy {{{  # ALWAYS NEEDS DEV LIBRARY LOCATION
++librrdlegacy_threadsafe="no"
++librrdlegacy_rrdc_update="no"
++AC_ARG_WITH([librrdlegacy],
++  [AS_HELP_STRING([--with-librrdlegacy@<:@=PREFIX@:>@], [Path to rrdtool.])],
++  [
++    if test "x$withval" != "xno" && test "x$withval" != "xyes"; then
++      librrdlegacy_cflags="-I$withval/include"
++      librrdlegacy_ldflags="-L$withval/lib"
++      with_librrdlegacy="yes"
++    else
++      with_librrdlegacy="$withval"
++    fi
++  ],
++  [with_librrdlegacy="yes"]
++)
++
++if test "x$with_librrdlegacy" = "xyes"; then
++  BUILD_WITH_LIBRRDLEGACY_CFLAGS="$RRDLEGACY_CFLAGS $librrdlegacy_cflags"
++  BUILD_WITH_LIBRRDLEGACY_LDFLAGS="$librrdlegacy_ldflags -lrrd"
++#  BUILD_WITH_LIBRRDLEGACY_LIBS="$RRDLEGACY_LIBS"
++fi
++
++AC_SUBST([BUILD_WITH_LIBRRDLEGACY_CFLAGS])
++AC_SUBST([BUILD_WITH_LIBRRDLEGACY_LDFLAGS])
++AC_SUBST([BUILD_WITH_LIBRRDLEGACY_LIBS])
++# }}}
++
+ # --with-libsensors {{{
+ AC_ARG_WITH([libsensors],
+   [AS_HELP_STRING([--with-libsensors@<:@=PREFIX@:>@], [Path to lm_sensors.])],
+@@ -7156,6 +7184,7 @@ AC_PLUGIN([redis],               [$with_
+ AC_PLUGIN([routeros],            [$with_librouteros],         [RouterOS plugin])
+ AC_PLUGIN([rrdcached],           [$librrd_rrdc_update],       [RRDTool output plugin])
+ AC_PLUGIN([rrdtool],             [$with_librrd],              [RRDTool output plugin])
++AC_PLUGIN([rrdtoollegacy],       [$with_librrdlegacy],        [RRDTool legacy output plugin])
+ AC_PLUGIN([sensors],             [$with_libsensors],          [lm_sensors statistics])
+ AC_PLUGIN([serial],              [$plugin_serial],            [serial port traffic])
+ AC_PLUGIN([sigrok],              [$with_libsigrok],           [sigrok acquisition sources])
+@@ -7259,6 +7288,7 @@ AC_SUBST([DEFAULT_LOG_LEVEL])
+ 
+ # Load only one of rrdtool, network, csv in the default config.
+ LOAD_PLUGIN_RRDTOOL=""
++LOAD_PLUGIN_RRDTOOLLEGACY=""
+ LOAD_PLUGIN_NETWORK=""
+ LOAD_PLUGIN_CSV=""
+ 
+@@ -7270,6 +7300,12 @@ else
+   LOAD_PLUGIN_RRDTOOL="##"
+ fi
+ 
++if test "x$enable_rrdtoollegacy" = "xyes"; then
++  default_write_plugin="rrdtoollegacy"
++else
++  LOAD_PLUGIN_RRDTOOLLEGACY="##"
++fi
++
+ if test "x$enable_network" = "xyes"; then
+   if test "x$default_write_plugin" = "xnone"; then
+     default_write_plugin="network"
+@@ -7292,6 +7328,7 @@ fi
+ AC_MSG_RESULT([$default_write_plugin])
+ 
+ AC_SUBST([LOAD_PLUGIN_RRDTOOL])
++AC_SUBST([LOAD_PLUGIN_RRDTOOLLEGACY])
+ AC_SUBST([LOAD_PLUGIN_NETWORK])
+ AC_SUBST([LOAD_PLUGIN_CSV])
+ 
+@@ -7374,6 +7411,10 @@ if test "x$with_librrd" = "xyes" && test
+   with_librrd="yes (warning: librrd is not thread-safe)"
+ fi
+ 
++if test "x$with_librrdlegacy" = "xyes" && test "x$librrdlegacy_threadsafe" != "xyes"; then
++  with_librrdlegacy="yes (warning: librrdlegacy is not thread-safe)"
++fi
++
+ if test "x$with_libperl" = "xyes"; then
+   with_libperl="yes (version `$PERL -MConfig -e 'print $Config{version};'`)"
+ else
+@@ -7458,6 +7499,7 @@ AC_MSG_RESULT([    libriemann-client . .
+ AC_MSG_RESULT([    librdkafka  . . . . . $with_librdkafka])
+ AC_MSG_RESULT([    librouteros . . . . . $with_librouteros])
+ AC_MSG_RESULT([    librrd  . . . . . . . $with_librrd])
++AC_MSG_RESULT([    librrd (legacy) . . . $with_librrdlegacy])
+ AC_MSG_RESULT([    libsensors  . . . . . $with_libsensors])
+ AC_MSG_RESULT([    libsigrok   . . . . . $with_libsigrok])
+ AC_MSG_RESULT([    libssl  . . . . . . . $with_libssl])
+@@ -7607,6 +7649,7 @@ AC_MSG_RESULT([    redis . . . . . . . .
+ AC_MSG_RESULT([    routeros  . . . . . . $enable_routeros])
+ AC_MSG_RESULT([    rrdcached . . . . . . $enable_rrdcached])
+ AC_MSG_RESULT([    rrdtool . . . . . . . $enable_rrdtool])
++AC_MSG_RESULT([    rrdtoollegacy . . . . $enable_rrdtoollegacy])
+ AC_MSG_RESULT([    sensors . . . . . . . $enable_sensors])
+ AC_MSG_RESULT([    serial  . . . . . . . $enable_serial])
+ AC_MSG_RESULT([    sigrok  . . . . . . . $enable_sigrok])
