@@ -30,6 +30,8 @@ PKG_BUILD_DEPENDS:=PACKAGE_collectd-mod-write-prometheus:protobuf-c/host
 
 PKG_CONFIG_DEPENDS:= \
 	PACKAGE_COLLECTD_ENCRYPTED_NETWORK \
+	PACKAGE_COLLECTD_NEW_RRDTOOL \
+	PACKAGE_COLLECTD_OLD_RRDTOOL \
 	PACKAGE_COLLECTD_DEBUG_OUTPUT_ENABLE
 
 COLLECTD_PLUGINS_DISABLED:= \
@@ -243,6 +245,7 @@ define Package/collectd/description
 endef
 
 define Package/collectd/config
+  if PACKAGE_collectd
 	config PACKAGE_COLLECTD_ENCRYPTED_NETWORK
 	bool "Enable ability to use encrypted networking"
 	default n
@@ -257,6 +260,19 @@ define Package/collectd/config
 	  Enables the compiler option that collectd is compiled with
 	  debugging support. This is used at development stages to get
 	  more messages from the collectd during development.
+
+    choice
+      prompt "RRDtool version"
+	depends on PACKAGE_collectd-mod-rrdtool
+	default PACKAGE_COLLECTD_OLD_RRDTOOL
+
+	config PACKAGE_COLLECTD_NEW_RRDTOOL
+		bool "New RRDtool 1.8+, enhanced graphics"
+
+	config PACKAGE_COLLECTD_OLD_RRDTOOL
+		bool "Old RRDtool 1.0.50, small size. Default"
+    endchoice
+  endif
 endef
 
 # common configure args
@@ -334,9 +350,13 @@ ifneq ($(CONFIG_PACKAGE_collectd-mod-modbus),)
   CONFIGURE_ARGS+= --with-libmodbus="$(STAGING_DIR)/usr"
 endif
 
-# exception: mod-rrdtool needs rrdtool-1.0.x
+# exception: mod-rrdtool needs rrdtool-1.0.x, enhanced graphs need rrdtool
 ifneq ($(CONFIG_PACKAGE_collectd-mod-rrdtool),)
-  CONFIGURE_ARGS+= --with-librrd="$(STAGING_DIR)/usr/lib/rrdtool-1.0"
+  ifneq ($(CONFIG_PACKAGE_COLLECTD_NEW_RRDTOOL),)
+    CONFIGURE_ARGS+= --with-librrd="$(STAGING_DIR)/usr/lib/rrdtool"
+  else
+    CONFIGURE_ARGS+= --with-librrd="$(STAGING_DIR)/usr/lib/rrdtool-1.0"
+  endif
 endif
 
 # exception: mod-smart needs libatasmart and libudev
@@ -510,7 +530,9 @@ $(eval $(call BuildPlugin,powerdns,PowerDNS server status input,powerdns,))
 $(eval $(call BuildPlugin,processes,process status input,processes,+PACKAGE_collectd-mod-processes:libmnl))
 $(eval $(call BuildPlugin,protocols,network protocols input,protocols,))
 $(eval $(call BuildPlugin,routeros,MikroTik RouterOS input,routeros,+PACKAGE_collectd-mod-routeros:librouteros))
-$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool,+PACKAGE_collectd-mod-rrdtool:librrd1))
+$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool, \
+	+PACKAGE_collectd-mod-rrdtool&&PACKAGE_COLLECTD_NEW_RRDTOOL:librrd \
+	+PACKAGE_collectd-mod-rrdtool&&PACKAGE_COLLECTD_OLD_RRDTOOL:librrd1))
 $(eval $(call BuildPlugin,sensors,lm_sensors input,sensors,+PACKAGE_collectd-mod-sensors:lm-sensors))
 $(eval $(call BuildPlugin,smart,smart input,smart,+PACKAGE_collectd-mod-smart:libatasmart))
 $(eval $(call BuildPlugin,snmp,SNMP input,snmp,+PACKAGE_collectd-mod-snmp:libnetsnmp))
