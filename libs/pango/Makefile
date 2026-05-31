@@ -1,0 +1,61 @@
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=pango
+PKG_VERSION:=1.57.1
+PKG_RELEASE:=1
+
+PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
+PKG_SOURCE_URL:=@GNOME/$(PKG_NAME)/1.57
+PKG_HASH:=e65d6d117080dc3aeeb7d8b4b3b518f7383aa2e6cfce23117c623cd624764c2f
+
+PKG_MAINTAINER:=
+PKG_LICENSE:=LGPL-2.0-or-later
+PKG_LICENSE_FILES:=COPYING
+PKG_CPE_ID:=cpe:/a:gnome:pango
+
+PKG_BUILD_DEPENDS:=glib2/host
+PKG_INSTALL:=1
+
+include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/nls.mk
+include $(INCLUDE_DIR)/meson.mk
+
+define Package/libpango
+  SECTION:=libs
+  CATEGORY:=Libraries
+  SUBMENU:=Video
+  TITLE:=Library for laying out and rendering of text
+  URL:=https://www.pango.org/
+  DEPENDS:=+glib2-gio +fribidi +harfbuzz +libcairo $(ICONV_DEPENDS) $(INTL_DEPENDS)
+endef
+
+MESON_ARGS += \
+	-Db_lto=true \
+	-Dbuild-examples=false \
+	-Dbuild-testsuite=false \
+	-Dgtk_doc=false \
+	-Dintrospection=disabled \
+	-Dlibthai=disabled \
+	-Dman-pages=false \
+	-Dsysprof=disabled \
+	-Dxft=disabled
+
+define package/libpango/decription
+endef
+
+define Build/InstallDev
+	$(INSTALL_DIR) $(1)/usr/lib
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib/
+	$(INSTALL_DIR) $(1)/usr/include/pango-1.0/pango
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/include/pango-1.0/pango/*.h $(1)/usr/include/pango-1.0/pango/
+	$(INSTALL_DIR) $(1)/usr/lib/pkgconfig
+	$(INSTALL_DATA) $(PKG_INSTALL_DIR)/usr/lib/pkgconfig/*.pc $(1)/usr/lib/pkgconfig/
+
+endef
+
+define Package/libpango/install
+	$(INSTALL_DIR) $(1)/usr/lib
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/*.so* $(1)/usr/lib/
+endef
+
+$(eval $(call BuildPackage,libpango))
