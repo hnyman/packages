@@ -1,0 +1,22 @@
+From 3297df003a0d1dc86278a9da2481b8594e543719 Mon Sep 17 00:00:00 2001
+From: Felix Xing <fxing@qnx.com>
+Date: Mon, 27 Jan 2025 12:57:36 -0500
+Subject: [PATCH] remove compiler flag "-ansi"
+
+---
+ meson.build | 4 ----
+ 1 file changed, 4 deletions(-)
+
+--- a/meson.build
++++ b/meson.build
+@@ -21,10 +21,6 @@ libversion = '@0@.@1@.0'.format(soversio
+ # C compiler. This is the cross compiler if we're cross-compiling
+ cc = meson.get_compiler('c')
+ 
+-if cc.get_id() == 'gcc' and cc.has_argument('-ansi')
+-  add_project_arguments('-ansi', language: 'c')
+-endif
+-
+ # Handle symbol visibility for Windows
+ fribidi_static_cargs = []
+ fribidi_build_cargs = []
