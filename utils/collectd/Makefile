@@ -328,9 +328,9 @@ ifneq ($(CONFIG_PACKAGE_collectd-mod-modbus),)
   CONFIGURE_ARGS+= --with-libmodbus="$(STAGING_DIR)/usr"
 endif
 
-# exception: mod-rrdtool needs rrdtool-1.0.x
+# exception: mod-rrdtool needs rrdtool
 ifneq ($(CONFIG_PACKAGE_collectd-mod-rrdtool),)
-  CONFIGURE_ARGS+= --with-librrd="$(STAGING_DIR)/usr/lib/rrdtool-1.0"
+  CONFIGURE_ARGS+= --with-librrd="$(STAGING_DIR)/usr/lib/rrdtool"
 endif
 
 # exception: mod-smart needs libatasmart and libudev
@@ -504,7 +504,7 @@ $(eval $(call BuildPlugin,powerdns,PowerDNS server status input,powerdns,))
 $(eval $(call BuildPlugin,processes,process status input,processes,+PACKAGE_collectd-mod-processes:libmnl))
 $(eval $(call BuildPlugin,protocols,network protocols input,protocols,))
 $(eval $(call BuildPlugin,routeros,MikroTik RouterOS input,routeros,+PACKAGE_collectd-mod-routeros:librouteros))
-$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool,+PACKAGE_collectd-mod-rrdtool:librrd1))
+$(eval $(call BuildPlugin,rrdtool,RRDtool output,rrdtool,+PACKAGE_collectd-mod-rrdtool:librrd))
 $(eval $(call BuildPlugin,sensors,lm_sensors input,sensors,+PACKAGE_collectd-mod-sensors:lm-sensors))
 $(eval $(call BuildPlugin,smart,smart input,smart,+PACKAGE_collectd-mod-smart:libatasmart))
 $(eval $(call BuildPlugin,snmp,SNMP input,snmp,+PACKAGE_collectd-mod-snmp:libnetsnmp))
