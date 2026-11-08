@@ -1,0 +1,53 @@
+From 34422e4d90d066e7731acf4fbddd05ae3a9d8342 Mon Sep 17 00:00:00 2001
+From: Reiner Ost <admin@r-ost.de>
+Date: Sat, 5 Sep 2026 13:17:27 +0200
+Subject: [PATCH] xport: fix invalid JSON output with PRINT
+
+JSON xport output becomes invalid when PRINT data is present and the
+output is written directly to a FILE stream.
+
+The formatter appends a trailing comma after the "prints" array and
+later tries to remove it from stringbuffer_t::data. This only works
+when a memory buffer is used. When stringbuffer_t::file is set,
+addToBuffer() writes directly to the stream and buffer->data remains
+NULL, so the trailing comma cannot be removed.
+
+Emit the separator before the optional "prints" member instead of
+appending a trailing comma and removing it afterwards. This also
+matches the existing handling of "gprints" and "rules".
+
+Signed-off-by: Reiner Ost <admin@r-ost.de>
+---
+ src/rrd_xport.c | 12 ++----------
+ 1 file changed, 2 insertions(+), 10 deletions(-)
+
+--- a/src/rrd_xport.c
++++ b/src/rrd_xport.c
+@@ -906,14 +906,6 @@ static int rrd_xport_format_xmljson(
+         return -1;
+     }
+ 
+-    /* if we have got a trailing , then kill it */
+-    if (buffer->data) {
+-        if (buffer->data[buffer->len - 2] == ',') {
+-            buffer->data[buffer->len - 2] = buffer->data[buffer->len - 1];
+-            buffer->len--;
+-        }
+-    }
+-
+     /* end meta */
+     if (json) {
+         snprintf(buf, sizeof(buf), "     },\n");
+@@ -1362,10 +1354,10 @@ static int rrd_xport_format_addprints(
+     /* now add prints */
+     if (prints.len) {
+         if (json) {
+-            snprintf(buf, sizeof(buf), "    \"%s\": [\n", "prints");
++            snprintf(buf, sizeof(buf), "    ,\"%s\": [\n", "prints");
+             addToBuffer(buffer, buf, 0);
+             addToBuffer(buffer, (char *) prints.data + 2, prints.len - 2);
+-            addToBuffer(buffer, "\n        ],\n", 0);
++            addToBuffer(buffer, "\n        ]\n", 0);
+         } else {
+             snprintf(buf, sizeof(buf), "    <%s>\n", "prints");
+             addToBuffer(buffer, buf, 0);

@@ -1,0 +1,214 @@
+From 7199d7c77a5808843e2bfd24bbfb0d3e3b894d24 Mon Sep 17 00:00:00 2001
+From: Reiner Ost <admin@r-ost.de>
+Date: Thu, 10 Sep 2026 22:07:17 +0200
+Subject: [PATCH] Remove obsolete PCRE fallback
+
+---
+ configure.ac     | 15 -------------
+ src/rrd_create.c | 56 ------------------------------------------------
+ src/rrd_graph.c  | 29 -------------------------
+ 3 files changed, 100 deletions(-)
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -623,21 +623,6 @@ AC_CACHE_CHECK([whether we need to inclu
+                      [EX_CHECK_ALL(gthread-2.0, g_thread_init, glib.h, gthread-2.0, x.x.x, "", "")
+                      AC_MSG_RESULT(yes)])])
+ 
+-AC_CHECK_FUNC(g_regex_new,[
+-   AC_DEFINE(HAVE_G_REGEX_NEW,[1],[our glib has g_regex_new])
+-],[
+-   AC_MSG_CHECKING(if pcre is available to supply the missing regex support in glib)
+-   AC_MSG_RESULT(checking now ...)
+-   EX_CHECK_ALL(pcre,   pcre_compile,            pcre.h,                 pcre,    x.x.x, [get a newer glib and you will not need pcre at all],"")
+-   AC_CHECK_FUNC(pcre_compile,[
+-        AC_DEFINE(HAVE_PCRE_COMPILE,[1],[we have pcre to replace missing regexp support form glib])
+-   ],[
+-        AC_MSG_ERROR([you need either glib with g_regex support or libpcre to compile rrdtool.])
+-   ])
+-])
+-
+-
+-
+ CORE_LIBS="$LIBS"
+ 
+ if test $enable_rrd_graph != no; then
+--- a/src/rrd_create.c
++++ b/src/rrd_create.c
+@@ -23,14 +23,6 @@
+ #include "rrd_tool.h"
+ #include "fnv.h"
+ 
+-#ifndef HAVE_G_REGEX_NEW
+-#ifdef HAVE_PCRE_COMPILE
+-#include <pcre.h>
+-#else
+-#error "you must have either glib with regexp support or libpcre"
+-#endif
+-#endif
+-
+ #include "rrd_rpncalc.h"
+ #include "rrd_hw.h"
+ #include "rrd_client.h"
+@@ -338,7 +330,6 @@ int parseDS(
+     char     *dst_tmp = NULL;
+     char     *dst_args = NULL;
+ 
+-#ifdef HAVE_G_REGEX_NEW
+     GError   *gerr = NULL;
+     GRegex   *re = g_regex_new(DS_RE, G_REGEX_EXTENDED, 0, &gerr);
+     GMatchInfo *mi = NULL;
+@@ -348,22 +339,6 @@ int parseDS(
+         goto done;
+     }
+     int       m = g_regex_match(re, def, 0, &mi);
+-#else
+-#define OVECCOUNT 30    /* should be a multiple of 3 */
+-    pcre     *re;
+-    const char *error;
+-    int       erroffset;
+-    int       ovector[OVECCOUNT];
+-
+-    re = pcre_compile(DS_RE, PCRE_EXTENDED, &error, &erroffset, NULL);
+-    if (re == NULL) {
+-        rrd_set_error("cannot compile regular expression: %s (%s)", error,
+-                      DS_RE);
+-        goto done;
+-    }
+-    int       m =
+-        pcre_exec(re, NULL, def, (int) strlen(def), 0, 0, ovector, OVECCOUNT);
+-#endif
+     if (!m) {
+         rrd_set_error("invalid DS format");
+         goto done;
+@@ -382,24 +357,12 @@ int parseDS(
+ 
+     // NAME
+     memset(ds_def->ds_nam, 0, sizeof(ds_def->ds_nam));
+-#ifdef HAVE_G_REGEX_NEW
+     g_match_info_fetch_pos(mi, DS_NAME_SUBGROUP, &s, &e);
+-#else
+-    s = ovector[DS_NAME_SUBGROUP * 2];
+-    e = ovector[DS_NAME_SUBGROUP * 2 + 1];
+-#endif
+     strncpy(ds_def->ds_nam, def + s, e - s);
+ 
+     // DST + DST args
+-#ifdef HAVE_G_REGEX_NEW
+     g_match_info_fetch_pos(mi, DST_SUBGROUP, &s, &e);
+     g_match_info_fetch_pos(mi, DST_ARGS_SUBGROUP, &s2, &e2);
+-#else
+-    s = ovector[DST_SUBGROUP * 2];
+-    e = ovector[DST_SUBGROUP * 2 + 1];
+-    s2 = ovector[DST_ARGS_SUBGROUP * 2];
+-    e2 = ovector[DST_ARGS_SUBGROUP * 2 + 1];
+-#endif
+ 
+     dst_tmp = strndup(def + s, e - s);
+     dst_args = strndup(def + s2, e2 - s2);
+@@ -435,23 +398,13 @@ int parseDS(
+         char     *endptr;
+ 
+         mapping->ds_nam = strdup(ds_def->ds_nam);
+-#ifdef HAVE_G_REGEX_NEW
+         g_match_info_fetch_pos(mi, MAPPED_DS_NAME_SUBGROUP, &s, &e);
+-#else
+-        s = ovector[MAPPED_DS_NAME_SUBGROUP * 2];
+-        e = ovector[MAPPED_DS_NAME_SUBGROUP * 2 + 1];
+-#endif
+         mapping->mapped_name = strndup(def + s, e - s);
+         if (mapping->ds_nam == NULL || mapping->mapped_name == NULL) {
+             rrd_set_error("Cannot allocate memory");
+             goto done;
+         }
+-#ifdef HAVE_G_REGEX_NEW
+         g_match_info_fetch_pos(mi, OPT_MAPPED_INDEX_SUBGROUP, &s, &e);
+-#else
+-        s = ovector[OPT_MAPPED_INDEX_SUBGROUP * 2];
+-        e = ovector[OPT_MAPPED_INDEX_SUBGROUP * 2 + 1];
+-#endif
+         /* we do not have to check for errors: invalid indices will be checked later, 
+          * and syntactically, the RE has done the job for us already*/
+         mapping->index = s != e ? strtol(def + s, &endptr, 10) : -1;
+@@ -461,12 +414,8 @@ int parseDS(
+ 
+   done:
+     if (re) {
+-#ifdef HAVE_G_REGEX_NEW
+         g_match_info_free(mi);
+         g_regex_unref(re);
+-#else
+-        pcre_free(re);
+-#endif
+     }
+ 
+     if (dst_tmp)
+@@ -2877,11 +2826,6 @@ static void free_mapping(
+         free(mapping->ds_nam);
+     if (mapping->def)
+         free(mapping->def);
+-#ifdef HAVE_G_REGEX_NEW
+     if (mapping->mapped_name)
+         free(mapping->mapped_name);
+-#else
+-    if (mapping->mapped_name)
+-        pcre_free_substring(mapping->mapped_name);
+-#endif
+ }
+--- a/src/rrd_graph.c
++++ b/src/rrd_graph.c
+@@ -24,17 +24,7 @@
+ 
+ #include "unused.h"
+ 
+-
+-#ifdef HAVE_G_REGEX_NEW
+ #include <glib.h>
+-#else
+-#ifdef HAVE_PCRE_COMPILE
+-#include <pcre.h>
+-#else
+-#error "you must have either glib with regexp support or libpcre"
+-#endif
+-#endif
+-
+ 
+ /* for basename */
+ #ifdef HAVE_LIBGEN_H
+@@ -5874,13 +5864,10 @@ int rrd_graph_color(
+     }
+ }
+ 
+-#define OVECCOUNT 30    /* should be a multiple of 3 */
+-
+ static int bad_format_check(
+     const char *pattern,
+     char *fmt)
+ {
+-#ifdef HAVE_G_REGEX_NEW
+     GError   *gerr = NULL;
+     GRegex   *re = g_regex_new(pattern, G_REGEX_EXTENDED, 0, &gerr);
+     GMatchInfo *mi;
+@@ -5894,22 +5881,6 @@ static int bad_format_check(
+ 
+     g_match_info_free(mi);
+     g_regex_unref(re);
+-#else
+-    const char *error;
+-    int       erroffset;
+-    int       ovector[OVECCOUNT];
+-    pcre     *re;
+-
+-    re = pcre_compile(pattern, PCRE_EXTENDED, &error, &erroffset, NULL);
+-    if (re == NULL) {
+-        rrd_set_error("cannot compile regular expression: %s (%s)", error,
+-                      pattern);
+-        return 1;
+-    }
+-    int       m =
+-        pcre_exec(re, NULL, fmt, (int) strlen(fmt), 0, 0, ovector, OVECCOUNT);
+-    pcre_free(re);
+-#endif
+     if (!m) {
+         rrd_set_error("invalid format string '%s' (should match '%s')", fmt,
+                       pattern);
